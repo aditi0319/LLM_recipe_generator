@@ -1,5 +1,2 @@
 streamlit
-transformers==4.39.3
-torch==2.2.2
-sentencepiece
-accelerate
+google-generativeai
