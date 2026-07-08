@@ -1,87 +1,156 @@
 import streamlit as st
-from transformers import pipeline
+import google.generativeai as genai
 import json
 import os
 
-st.set_page_config(page_title="AI Recipe Generator", page_icon="🍳")
+st.set_page_config(
+    page_title="🍳 AI Recipe Generator",
+    page_icon="🍳",
+    layout="centered"
+)
 
-# Load model only once
-@st.cache_resource
-def load_model():
-    return pipeline(
-        "text2text-generation",
-        model="google/flan-t5-base"
-    )
+# -------------------------------
+# Gemini API Configuration
+# -------------------------------
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-generator = load_model()
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 SAVE_FILE = "saved_recipes.json"
 
-# Load saved recipes
+# -------------------------------
+# Load Saved Recipes
+# -------------------------------
 if os.path.exists(SAVE_FILE):
     with open(SAVE_FILE, "r") as f:
         saved_recipes = json.load(f)
 else:
     saved_recipes = []
 
-# Session state
+# -------------------------------
+# Session State
+# -------------------------------
 if "recipe" not in st.session_state:
     st.session_state.recipe = ""
 
+# -------------------------------
+# Recipe Generator
+# -------------------------------
 def generate_recipe(ingredients):
+
     prompt = f"""
-Create a detailed recipe using these ingredients:
+You are an expert chef.
+
+Create a delicious recipe using these ingredients:
 
 {ingredients}
 
-Return in this format:
+Return in the following format:
 
 Recipe Name:
+
+Preparation Time:
+
+Cooking Time:
+
 Ingredients:
+
 Instructions:
+
+Calories (Approx):
+
+Chef Tips:
 """
 
-    result = generator(
-        prompt,
-        max_new_tokens=200,
-        do_sample=True,
-        temperature=0.7
-    )
+    response = model.generate_content(prompt)
 
-    return result[0]["generated_text"]
+    return response.text
 
+# -------------------------------
+# Save Recipe
+# -------------------------------
 def save_recipe(recipe):
+
     saved_recipes.append(recipe)
+
     with open(SAVE_FILE, "w") as f:
-        json.dump(saved_recipes, f, indent=2)
+        json.dump(saved_recipes, f, indent=4)
+
+# -------------------------------
+# UI
+# -------------------------------
 
 st.title("🍳 AI Recipe Generator")
 
+st.write(
+    "Generate delicious recipes instantly using Google's Gemini AI."
+)
+
 ingredients = st.text_input(
-    "Enter ingredients (comma separated):",
-    placeholder="potato, onion, cheese, butter"
+    "Enter Ingredients",
+    placeholder="Potato, Cheese, Onion, Garlic..."
 )
 
 if st.button("Generate Recipe"):
-    if ingredients.strip():
-        with st.spinner("Generating recipe..."):
-            st.session_state.recipe = generate_recipe(ingredients)
+
+    if ingredients.strip() == "":
+        st.warning("Please enter ingredients.")
     else:
-        st.warning("Please enter some ingredients.")
 
-if st.session_state.recipe:
+        with st.spinner("Generating Recipe..."):
+
+            st.session_state.recipe = generate_recipe(ingredients)
+
+# Display Recipe
+if st.session_state.recipe != "":
+
     st.subheader("Generated Recipe")
-    st.write(st.session_state.recipe)
 
-    if st.button("💾 Save Recipe"):
-        save_recipe(st.session_state.recipe)
-        st.success("Recipe saved!")
+    st.markdown(st.session_state.recipe)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("💾 Save Recipe"):
+            save_recipe(st.session_state.recipe)
+            st.success("Recipe Saved!")
+
+    with col2:
+        st.download_button(
+            "⬇ Download Recipe",
+            st.session_state.recipe,
+            file_name="recipe.txt",
+            mime="text/plain"
+        )
+
+# -------------------------------
+# Search Saved Recipes
+# -------------------------------
+
+st.divider()
 
 st.subheader("📚 Saved Recipes")
 
-if saved_recipes:
-    for i, recipe in enumerate(saved_recipes, 1):
-        with st.expander(f"Recipe {i}"):
-            st.write(recipe)
+search = st.text_input("Search Saved Recipes")
+
+filtered = []
+
+if search.strip():
+
+    for recipe in saved_recipes:
+        if search.lower() in recipe.lower():
+            filtered.append(recipe)
+
 else:
-    st.info("No recipes saved yet.")
+    filtered = saved_recipes
+
+if filtered:
+
+    for i, recipe in enumerate(filtered):
+
+        with st.expander(f"Recipe {i+1}"):
+
+            st.markdown(recipe)
+
+else:
+    st.info("No recipes found.")
