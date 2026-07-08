@@ -3,11 +3,17 @@ from transformers import pipeline
 import json
 import os
 
-# Initialize Hugging Face pipeline with the chosen model
-generator = pipeline(
-    "text-generation",
-    model="flax-community/t5-recipe-generation"
-)
+st.set_page_config(page_title="AI Recipe Generator", page_icon="🍳")
+
+# Load model only once
+@st.cache_resource
+def load_model():
+    return pipeline(
+        "text2text-generation",
+        model="google/flan-t5-base"
+    )
+
+generator = load_model()
 
 SAVE_FILE = "saved_recipes.json"
 
@@ -18,43 +24,64 @@ if os.path.exists(SAVE_FILE):
 else:
     saved_recipes = []
 
-# Function to generate recipe
-def generate_recipe(ingredients):
-    prompt = f"Create a recipe using these ingredients: {ingredients}. Include recipe name and step-by-step instructions."
-    # Display the prompt in bold
-    st.markdown(f"**Prompt:** {prompt}")
-    result = generator(prompt, max_length=150)[0]["generated_text"]
-    return result
+# Session state
+if "recipe" not in st.session_state:
+    st.session_state.recipe = ""
 
-# Function to save recipe
-def save_recipe(recipe_text):
-    saved_recipes.append(recipe_text)
+def generate_recipe(ingredients):
+    prompt = f"""
+Create a detailed recipe using these ingredients:
+
+{ingredients}
+
+Return in this format:
+
+Recipe Name:
+Ingredients:
+Instructions:
+"""
+
+    result = generator(
+        prompt,
+        max_new_tokens=200,
+        do_sample=True,
+        temperature=0.7
+    )
+
+    return result[0]["generated_text"]
+
+def save_recipe(recipe):
+    saved_recipes.append(recipe)
     with open(SAVE_FILE, "w") as f:
         json.dump(saved_recipes, f, indent=2)
 
-# --- Streamlit UI ---
-st.title("AI Recipe Generator")
+st.title("🍳 AI Recipe Generator")
 
-ingredients = st.text_input("Enter ingredients (comma separated):")
+ingredients = st.text_input(
+    "Enter ingredients (comma separated):",
+    placeholder="potato, onion, cheese, butter"
+)
 
 if st.button("Generate Recipe"):
     if ingredients.strip():
-        recipe = generate_recipe(ingredients)
-        st.subheader("Generated Recipe")
-        st.write(recipe)
-
-        # Save button appears only after generating a recipe
-        if st.button("Save This Recipe"):
-            save_recipe(recipe)
-            st.success("Recipe saved!")
+        with st.spinner("Generating recipe..."):
+            st.session_state.recipe = generate_recipe(ingredients)
     else:
-        st.warning("Please enter some ingredients!")
+        st.warning("Please enter some ingredients.")
 
-# View saved recipes
-st.subheader("Saved Recipes")
+if st.session_state.recipe:
+    st.subheader("Generated Recipe")
+    st.write(st.session_state.recipe)
+
+    if st.button("💾 Save Recipe"):
+        save_recipe(st.session_state.recipe)
+        st.success("Recipe saved!")
+
+st.subheader("📚 Saved Recipes")
+
 if saved_recipes:
-    for i, r in enumerate(saved_recipes, 1):
+    for i, recipe in enumerate(saved_recipes, 1):
         with st.expander(f"Recipe {i}"):
-            st.write(r)
+            st.write(recipe)
 else:
     st.info("No recipes saved yet.")
