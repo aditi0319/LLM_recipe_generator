@@ -83,7 +83,7 @@ def save_recipe(recipe):
 st.title("🍳 AI Recipe Generator")
 
 st.write(
-    "Generate delicious recipes instantly using Google's Gemini AI."
+    "Generate delicious recipes instantly using this app."
 )
 
 ingredients = st.text_input(
