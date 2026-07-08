@@ -4,7 +4,10 @@ import json
 import os
 
 # Initialize Hugging Face pipeline with the chosen model
-generator = pipeline("text2text-generation", model="flax-community/t5-recipe-generation")
+generator = pipeline(
+    "text-generation",
+    model="flax-community/t5-recipe-generation"
+)
 
 SAVE_FILE = "saved_recipes.json"
 
